@@ -8,7 +8,7 @@ def create_user_id():
 
 
 def call_web_handler(account_id, user_id, prompt, conversation_sid=None):
-    path = st.config.base_url + "/conversation/webhook/web"
+    path = st.secrets["base_url"] + "/conversation/webhook/web"
 
     payload = {
         'account_id': account_id,
