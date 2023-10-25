@@ -8,16 +8,6 @@ BASE_URL = st.secrets["base_url"]
 
 
 def run(conversation_sid):
-    if conversation_sid:
-        messages, user_id = get_conversation(conversation_sid)
-        st.session_state.messages = messages
-        st.session_state.user_id = user_id
-    else:
-        st.session_state.messages = []
-
-    if not st.session_state.get("user_id"):
-        st.session_state.user_id = create_user_id()
-
     show_chat_history()
     handle_user_input(prompt=st.chat_input("I'd like a ..."), conversation_sid=conversation_sid)
 
@@ -85,8 +75,9 @@ def update_session_message(message_id, key, value):
     for msg in st.session_state.messages:
         if msg['id'] == message_id:
             msg[key] = value
+            print(msg)
             break
-
+        
 
 def handle_user_input(prompt, conversation_sid):
     if prompt:
@@ -169,8 +160,8 @@ def format_messages_for_download(selected_options):
 
 # Get query parameters
 query_params = st.experimental_get_query_params()
-account_id = query_params.get("account_id", [None])[0]
-conversation_sid = query_params.get("conversation_sid", [None])[0]
+account_id = query_params.get("account", [None])[0]
+conversation_sid = query_params.get("conversation", [None])[0]
 dev_mode = query_params.get("dev_mode", [None])[0]
 
 st.set_page_config(
@@ -192,7 +183,6 @@ if dev_mode:
     selected_options = st.sidebar.multiselect(
         "Select Messages", options, format_func=lambda o: o[1]
     )
-    print(selected_options)
 
     # Show count of selected messages
     st.sidebar.header(f"Selected messages ({len(selected_options)})")
