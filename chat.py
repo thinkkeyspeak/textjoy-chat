@@ -4,15 +4,62 @@ import string
 import random
 import json
 
-BASE_URL = st.secrets["base_url"]
+def run():
+    """This is the main function. It runs everytime a user interacts with widgets in the app"""
 
+    if conversation_sid:
+        st.session_state.messages, st.session_state.user_id = get_conversation(conversation_sid)
+    else:
+        st.session_state.messages = []
+        st.session_state.user_id = generate_phone_number()
 
-def run(conversation_sid):
+    st.title("Start an order")
+
+    # Create sidebar if dev_mode is enabled
+    if dev_mode:
+        setup_sidebar()
+
     show_chat_history()
-    handle_user_input(prompt=st.chat_input("I'd like a ..."), conversation_sid=conversation_sid)
+    handle_user_input(st.chat_input("I'd like a ..."), conversation_sid, account_id)
+
+
+def setup_sidebar():
+    st.sidebar.title("Developer Mode")
+
+    if st.session_state.get("selected_messages") is None:
+        st.session_state.selected_messages = []
+
+    # Using multi-select for message selection
+    options = format_multiselect_options(st.session_state.messages)
+    selected_options = st.sidebar.multiselect(
+        "Select Messages", options, format_func=lambda o: o[1]
+    )
+
+    # Show count of selected messages
+    st.sidebar.header(f"Selected messages ({len(selected_options)})")
+
+    # Offer download for selected messages
+    if selected_options:
+        st.session_state.selected_messages = selected_options
+        jsonl = format_messages_for_download(selected_options)
+        st.sidebar.download_button(
+            label="Download JSONL",
+            data=json.dumps(jsonl),
+            file_name=f"{conversation_sid}.jsonl",
+            mime="application/jsonl"
+        )
+
+    # Show conversation and user ID
+    st.sidebar.header("Conversation")
+    st.sidebar.markdown(conversation_sid)
+    st.sidebar.markdown(f'<a href="{BASE_URL}/conversations" target="_self">← All Conversations</a>', unsafe_allow_html=True)
+
+    st.sidebar.header("User ID")
+    st.sidebar.markdown(st.session_state.user_id)
 
 
 def show_chat_history():
+
     if not dev_mode:
         st.session_state.messages = [
             message for message in st.session_state.messages
@@ -31,10 +78,20 @@ def show_chat_history():
             if dev_mode:
                 manage_message_in_dev_mode(message)
             else:
-                st.markdown(message["content"])
+                st.write(message["content"])
 
 
 def manage_message_in_dev_mode(message):
+
+    if message.get("name"):
+        edited_name = st.text_input(
+            label="Function Name", 
+            value=message.get("name", ""), 
+            key=f"name_{message['id']}"
+        )
+        if edited_name != message["name"]:
+            message["name"] = edited_name
+            update_session_message(message['id'], 'name', edited_name)
 
     # Capture edited content
     edited_content = st.text_input(
@@ -59,16 +116,6 @@ def manage_message_in_dev_mode(message):
             message["function_call"] = edited_function_call
             update_session_message(message['id'], 'function_call', edited_function_call)
 
-    if message.get("name"):
-        edited_name = st.text_input(
-            label="Function Name", 
-            value=message.get("name", ""), 
-            key=f"name_{message['id']}"
-        )
-        if edited_name != message["name"]:
-            message["name"] = edited_name
-            update_session_message(message['id'], 'name', edited_name)
-
 
 def update_session_message(message_id, key, value):
     """Update a specific message in session state by its ID."""
@@ -79,7 +126,7 @@ def update_session_message(message_id, key, value):
             break
         
 
-def handle_user_input(prompt, conversation_sid):
+def handle_user_input(prompt, conversation_sid, account_id):
     if prompt:
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -114,13 +161,10 @@ def call_web_handler(account_id, user_id, prompt, conversation_sid=None):
     return data.get('reply'), data.get('conversation_sid')
 
 
-def create_user_id():
-    return "webuser-" + generate_random_string(12)
-
-
-def generate_random_string(length=12):
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for _ in range(length))
+def generate_phone_number():
+    """Generate a random phone number. Must start with +1313 and include 7 digits after"""
+    phone_number = "+1313" + ''.join([str(random.randint(0, 9)) for _ in range(7)])
+    return phone_number
 
 
 def get_conversation(conversation_sid):
@@ -155,8 +199,9 @@ def format_messages_for_download(selected_options):
     jsonl = {"messages": formatted_messages}
     return jsonl
 
+# CONFIGURE AND RUN APP
 
-# INITIALIZE AND CONFIGURE APP
+BASE_URL = st.secrets["base_url"]
 
 # Get query parameters
 query_params = st.experimental_get_query_params()
@@ -169,50 +214,5 @@ st.set_page_config(
     page_icon="static/favicon-transparent.ico"
 )
 
-# Setup session state
-if conversation_sid:
-    st.session_state.messages, st.session_state.user_id = get_conversation(conversation_sid)
-else:
-    st.session_state.messages = []
-    st.session_state.user_id = create_user_id()
-
-st.session_state.selected_messages = []
-
-st.title("Start an order")
-
-# Create sidebar if dev_mode is enabled
-if dev_mode:
-
-    st.sidebar.title("Developer Mode")
-
-    # Using multi-select for message selection
-    options = format_multiselect_options(st.session_state.messages)
-    selected_options = st.sidebar.multiselect(
-        "Select Messages", options, format_func=lambda o: o[1]
-    )
-
-    # Show count of selected messages
-    st.sidebar.header(f"Selected messages ({len(selected_options)})")
-
-    # Offer download for selected messages
-    if selected_options:
-        jsonl = format_messages_for_download(selected_options)
-        st.sidebar.download_button(
-            label="Download JSONL",
-            data=json.dumps(jsonl),
-            file_name=f"{conversation_sid}.jsonl",
-            mime="application/jsonl"
-        )
-
-    # Show conversation and user ID
-    st.sidebar.header("Conversation")
-    st.sidebar.markdown(conversation_sid)
-    st.sidebar.markdown(f'<a href="{BASE_URL}/conversations" target="_self">← All Conversations</a>', unsafe_allow_html=True)
-
-    st.sidebar.header("User ID")
-    st.sidebar.markdown(st.session_state.user_id)
-
-
-# RUN APP
 if __name__ == "__main__":
-    run(conversation_sid)
+    run()
