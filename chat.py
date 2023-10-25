@@ -168,7 +168,14 @@ st.set_page_config(
     page_title="TextJoy Chat",
     page_icon="static/favicon-transparent.ico"
 )
-st.session_state.messages, st.session_state.user_id = get_conversation(conversation_sid)
+
+# Setup session state
+if conversation_sid:
+    st.session_state.messages, st.session_state.user_id = get_conversation(conversation_sid)
+else:
+    st.session_state.messages = []
+    st.session_state.user_id = create_user_id()
+
 st.session_state.selected_messages = []
 
 st.title("Start an order")
