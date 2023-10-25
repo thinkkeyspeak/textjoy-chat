@@ -207,6 +207,15 @@ if dev_mode:
             mime="application/jsonl"
         )
 
+    # Show conversation and user ID
+    st.sidebar.header("Conversation")
+    st.sidebar.markdown(conversation_sid)
+    st.sidebar.markdown(f'<a href="{BASE_URL}/conversations" target="_self">← All Conversations</a>', unsafe_allow_html=True)
+
+    st.sidebar.header("User ID")
+    st.sidebar.markdown(st.session_state.user_id)
+
+
 # RUN APP
 if __name__ == "__main__":
     run(conversation_sid)
