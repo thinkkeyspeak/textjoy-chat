@@ -4,6 +4,14 @@ import string
 import random
 import json
 
+# Configure App
+BASE_URL = st.secrets["base_url"]
+
+st.set_page_config(
+    page_title="TextJoy Chat",
+    page_icon="static/favicon-transparent.ico"
+)
+
 def run():
     """This is the main function. It runs everytime a user interacts with widgets in the app"""
 
@@ -66,12 +74,16 @@ def setup_sidebar():
 
     # Show conversation and user ID
     st.sidebar.header("Conversation")
-    st.sidebar.write(st.session_state.conversation_sid)
     st.sidebar.markdown(f'<a href="{BASE_URL}/conversations" target="_self">← All Conversations</a>', unsafe_allow_html=True)
-
+    st.sidebar.write(st.session_state.conversation_sid)
+    
     st.sidebar.header("User ID")
     st.sidebar.write(st.session_state.user_id)
 
+    if st.sidebar.button("Delete Conversation"):
+        delete_conversation()
+        st.markdown(f'<meta http-equiv="refresh" content="0; URL={BASE_URL}/conversations">', unsafe_allow_html=True)
+        
 
 def show_chat_history():
 
@@ -218,14 +230,11 @@ def format_messages_for_download(selected_options):
     jsonl = {"messages": formatted_messages}
     return jsonl
 
-# CONFIGURE AND RUN APP
 
-BASE_URL = st.secrets["base_url"]
+def delete_conversation():
+    """Delete the current conversation."""
+    requests.delete(f"{BASE_URL}/conversation/{st.session_state.conversation_sid}/delete")
 
-st.set_page_config(
-    page_title="TextJoy Chat",
-    page_icon="static/favicon-transparent.ico"
-)
-
+# RUN APP
 if __name__ == "__main__":
     run()
