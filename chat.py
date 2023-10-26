@@ -7,20 +7,35 @@ import json
 def run():
     """This is the main function. It runs everytime a user interacts with widgets in the app"""
 
+    # Get query parameters
+    query_params = st.experimental_get_query_params()
+    st.session_state.account_id = query_params.get("account", [None])[0]
+    conversation_sid = query_params.get("conversation", [None])[0]
+    st.session_state.dev_mode = query_params.get("dev_mode", [None])[0]
+
     if conversation_sid:
-        st.session_state.messages, st.session_state.user_id = get_conversation(conversation_sid)
+        st.session_state.conversation_sid = conversation_sid
+
+    if st.session_state.get('conversation_sid'):
+        st.session_state.messages, st.session_state.user_id = get_conversation(st.session_state.conversation_sid)
     else:
+        st.session_state.conversation_sid = None
         st.session_state.messages = []
         st.session_state.user_id = generate_phone_number()
+
+    if not st.session_state.account_id:
+        st.error("No account ID provided. Please add ?account=YOUR_ACCOUNT_ID to the URL.")
+        return
+
 
     st.title("Start an order")
 
     # Create sidebar if dev_mode is enabled
-    if dev_mode:
+    if st.session_state.dev_mode:
         setup_sidebar()
 
     show_chat_history()
-    handle_user_input(st.chat_input("I'd like a ..."), conversation_sid, account_id)
+    handle_user_input(st.chat_input("I'd like a ..."), st.session_state.conversation_sid, st.session_state.account_id)
 
 
 def setup_sidebar():
@@ -45,22 +60,22 @@ def setup_sidebar():
         st.sidebar.download_button(
             label="Download JSONL",
             data=json.dumps(jsonl),
-            file_name=f"{conversation_sid}.jsonl",
+            file_name=f"{st.session_state.conversation_sid}.jsonl",
             mime="application/jsonl"
         )
 
     # Show conversation and user ID
     st.sidebar.header("Conversation")
-    st.sidebar.markdown(conversation_sid)
+    st.sidebar.write(st.session_state.conversation_sid)
     st.sidebar.markdown(f'<a href="{BASE_URL}/conversations" target="_self">← All Conversations</a>', unsafe_allow_html=True)
 
     st.sidebar.header("User ID")
-    st.sidebar.markdown(st.session_state.user_id)
+    st.sidebar.write(st.session_state.user_id)
 
 
 def show_chat_history():
 
-    if not dev_mode:
+    if not st.session_state.dev_mode:
         st.session_state.messages = [
             message for message in st.session_state.messages
             if message["role"] == "user" 
@@ -75,7 +90,7 @@ def show_chat_history():
         }
 
         with st.chat_message(name=message["role"], avatar=avatars.get(message["role"])):
-            if dev_mode:
+            if st.session_state.dev_mode:
                 manage_message_in_dev_mode(message)
             else:
                 st.write(message["content"])
@@ -129,7 +144,7 @@ def update_session_message(message_id, key, value):
 def handle_user_input(prompt, conversation_sid, account_id):
     if prompt:
         with st.chat_message("user"):
-            st.markdown(prompt)
+            st.write(prompt)
 
         st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -141,10 +156,14 @@ def handle_user_input(prompt, conversation_sid, account_id):
                     prompt, 
                     conversation_sid
                 )
-            st.markdown(reply)
+            st.write(reply)
 
         st.session_state.messages.append({"role": "assistant", "content": reply})
-        st.session_state.conversation_sid = conversation_sid
+        st.experimental_set_query_params(
+            account=account_id,
+            conversation=conversation_sid,
+            dev_mode=st.session_state.dev_mode
+        )
 
 
 def call_web_handler(account_id, user_id, prompt, conversation_sid=None):
@@ -202,12 +221,6 @@ def format_messages_for_download(selected_options):
 # CONFIGURE AND RUN APP
 
 BASE_URL = st.secrets["base_url"]
-
-# Get query parameters
-query_params = st.experimental_get_query_params()
-account_id = query_params.get("account", [None])[0]
-conversation_sid = query_params.get("conversation", [None])[0]
-dev_mode = query_params.get("dev_mode", [None])[0]
 
 st.set_page_config(
     page_title="TextJoy Chat",
