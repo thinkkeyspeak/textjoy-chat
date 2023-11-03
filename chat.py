@@ -19,7 +19,6 @@ def run():
     query_params = st.experimental_get_query_params()
     st.session_state.account_id = query_params.get("account", [None])[0]
     conversation_sid = query_params.get("conversation", [None])[0]
-    st.session_state.dev_mode = query_params.get("dev_mode", [None])[0]
 
     if conversation_sid:
         st.session_state.conversation_sid = conversation_sid
@@ -35,54 +34,37 @@ def run():
         st.error("No account ID provided. Please add ?account=YOUR_ACCOUNT_ID to the URL.")
         return
 
-
+    st.session_state.dev_mode = st.toggle("Dev Mode")
     st.title("Start an order")
-
-    # Create sidebar if dev_mode is enabled
-    if st.session_state.dev_mode:
-        setup_sidebar()
 
     show_chat_history()
     handle_user_input(st.chat_input("I'd like a ..."), st.session_state.conversation_sid, st.session_state.account_id)
-
+    
+    # Setup sidebar
+    if st.session_state.dev_mode:
+        setup_sidebar()
 
 def setup_sidebar():
-    st.sidebar.title("Developer Mode")
+    if st.session_state.dev_mode:
 
-    if st.session_state.get("selected_messages") is None:
-        st.session_state.selected_messages = []
+        # Show conversation and user ID
+        st.sidebar.markdown(f'<a href="{BASE_URL}/conversations" target="_self">Conversations /</a>', unsafe_allow_html=True)
+        st.sidebar.header(st.session_state.conversation_sid)
 
-    # Using multi-select for message selection
-    options = format_multiselect_options(st.session_state.messages)
-    selected_options = st.sidebar.multiselect(
-        "Select Messages", options, format_func=lambda o: o[1]
-    )
+        st.sidebar.header("User ID")
+        st.sidebar.write(st.session_state.user_id)
 
-    # Show count of selected messages
-    st.sidebar.header(f"Selected messages ({len(selected_options)})")
-
-    # Offer download for selected messages
-    if selected_options:
-        st.session_state.selected_messages = selected_options
-        jsonl = format_messages_for_download(selected_options)
         st.sidebar.download_button(
-            label="Download JSONL",
-            data=json.dumps(jsonl),
+            label="Download Conversation",
+            data =json.dumps(format_messages_for_download(st.session_state.messages)),
             file_name=f"{st.session_state.conversation_sid}.jsonl",
-            mime="application/jsonl"
+            mime="application/jsonl",
+            type="primary"
         )
 
-    # Show conversation and user ID
-    st.sidebar.header("Conversation")
-    st.sidebar.markdown(f'<a href="{BASE_URL}/conversations" target="_self">← All Conversations</a>', unsafe_allow_html=True)
-    st.sidebar.write(st.session_state.conversation_sid)
-    
-    st.sidebar.header("User ID")
-    st.sidebar.write(st.session_state.user_id)
-
-    if st.sidebar.button("Delete Conversation"):
-        delete_conversation()
-        st.markdown(f'<meta http-equiv="refresh" content="0; URL={BASE_URL}/conversations">', unsafe_allow_html=True)
+        if st.sidebar.button("Delete Conversation", type="secondary"):
+            delete_conversation()
+            st.markdown(f'<meta http-equiv="refresh" content="0; URL={BASE_URL}/conversations">', unsafe_allow_html=True)
         
 
 def show_chat_history():
@@ -103,54 +85,10 @@ def show_chat_history():
 
         with st.chat_message(name=message["role"], avatar=avatars.get(message["role"])):
             if st.session_state.dev_mode:
-                manage_message_in_dev_mode(message)
+                msg = format_message(message)
+                st.write(msg)
             else:
                 st.write(message["content"])
-
-
-def manage_message_in_dev_mode(message):
-
-    if message.get("name"):
-        edited_name = st.text_input(
-            label="Function Name", 
-            value=message.get("name", ""), 
-            key=f"name_{message['id']}"
-        )
-        if edited_name != message["name"]:
-            message["name"] = edited_name
-            update_session_message(message['id'], 'name', edited_name)
-
-    # Capture edited content
-    edited_content = st.text_input(
-        label="Content", 
-        value=message.get("content", ""), 
-        key=f"content_{message['id']}",
-        label_visibility="collapsed"
-    )
-
-    # If edited content differs from stored content, update it
-    if edited_content != message["content"]:
-        message["content"] = edited_content
-        update_session_message(message['id'], 'content', edited_content)
-
-    if message.get("function_call"):
-        edited_function_call = st.text_input(
-            label="Function Call",
-            value=message.get("function_call", ""), 
-            key=f"function_call_{message['id']}"
-        )
-        if edited_function_call != message["function_call"]:
-            message["function_call"] = edited_function_call
-            update_session_message(message['id'], 'function_call', edited_function_call)
-
-
-def update_session_message(message_id, key, value):
-    """Update a specific message in session state by its ID."""
-    for msg in st.session_state.messages:
-        if msg['id'] == message_id:
-            msg[key] = value
-            print(msg)
-            break
         
 
 def handle_user_input(prompt, conversation_sid, account_id):
@@ -204,27 +142,27 @@ def get_conversation(conversation_sid):
     return data.get('chat_history'), data.get('user_id')
 
 
-def format_multiselect_options(messages):
-    """Convert messages to multiselect options."""
-    return[(msg["id"], msg["content"])for msg in messages]
+def format_message(message):
+    """Format a message to only include fields that can be ingested for training."""
+    formatted_msg = {
+            "role": message["role"],
+        }
+    if message.get("content"):
+        formatted_msg["content"] = message["content"]
+    if message.get("name"):
+        formatted_msg["name"] = message["name"]
+    if message.get("function_call"):
+        formatted_msg["function_call"] = message["function_call"]
+
+    return formatted_msg
 
 
-def format_messages_for_download(selected_options):
+def format_messages_for_download(messages: list):
     """Convert selected options to JSONL format."""
-    selected_ids = [option[0] for option in selected_options]
-    messages = [msg for msg in st.session_state.messages if msg["id"] in selected_ids]
-
-    # for each message, return the role and content. If it has a name or function call, include those too
+    
     formatted_messages = []
     for msg in messages:
-        formatted_msg = {
-            "role": msg["role"],
-            "content": msg["content"],
-        }
-        if msg.get("name"):
-            formatted_msg["name"] = msg["name"]
-        if msg.get("function_call"):
-            formatted_msg["function_call"] = msg["function_call"]
+        formatted_msg = format_message(msg)
         formatted_messages.append(formatted_msg)
     
     jsonl = {"messages": formatted_messages}
