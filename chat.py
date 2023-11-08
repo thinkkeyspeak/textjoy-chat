@@ -132,7 +132,13 @@ def call_web_handler(account_id, user_id, prompt, conversation_sid=None):
 
 def generate_phone_number():
     """Generate a random phone number. Must start with +1313 and include 7 digits after"""
-    phone_number = "+1313" + ''.join([str(random.randint(0, 9)) for _ in range(7)])
+    # The first number of the area code and the exchange code cannot be 0 or 1.
+    area_code = 313
+    exchange_code = random.randint(200, 999)
+    subscriber_number = random.randint(0, 9999)
+
+    # Format the phone number to the desired format (XXX) XXX-XXXX.
+    phone_number = f"+1{area_code}{exchange_code}{subscriber_number:04d}"
     return phone_number
 
 
@@ -147,10 +153,10 @@ def format_message(message):
     formatted_msg = {
             "role": message["role"],
         }
-    if message.get("content"):
-        formatted_msg["content"] = message["content"]
     if message.get("name"):
         formatted_msg["name"] = message["name"]
+    if message.get("content"):
+        formatted_msg["content"] = message["content"]
     if message.get("function_call"):
         formatted_msg["function_call"] = message["function_call"]
 
