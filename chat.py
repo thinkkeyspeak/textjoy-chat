@@ -158,7 +158,7 @@ def format_message(message):
     if message.get("content"):
         formatted_msg["content"] = message["content"]
     if message.get("function_call"):
-        formatted_msg["function_call"] = message["function_call"]
+        formatted_msg["function_call"] = json.loads(message["function_call"])
 
     return formatted_msg
 
