@@ -3,6 +3,8 @@ import requests
 import string
 import random
 import json
+from datetime import datetime
+from dateutil import parser, tz
 
 # Configure App
 BASE_URL = st.secrets["base_url"]
@@ -85,7 +87,7 @@ def show_chat_history():
 
         with st.chat_message(name=message["role"], avatar=avatars.get(message["role"])):
             if st.session_state.dev_mode:
-                msg = format_message(message)
+                msg = display_message(message)
                 st.write(msg)
             else:
                 st.write(message["content"])
@@ -147,6 +149,27 @@ def get_conversation(conversation_sid):
     data = response.json()
     return data.get('chat_history'), data.get('user_id')
 
+
+def display_message(message):
+    """Display selected fields of a message."""
+
+    # Parse the GMT timestamp and convert to local time
+    timestamp = parser.parse(message["timestamp"])
+    local_timestamp = timestamp.astimezone(tz.tzlocal()).strftime('%H:%M:%S')
+
+    display_msg = {
+        "role": message["role"],
+        # show just the hour, minute, and second
+        "timestamp": local_timestamp
+    }
+    if message.get("name"):
+        display_msg["name"] = message["name"]
+    if message.get("content"):
+        display_msg["content"] = message["content"]
+    if message.get("function_call"):
+        display_msg["function_call"] = message["function_call"]
+
+    return display_msg
 
 def format_message(message):
     """Format a message to only include fields that can be ingested for training."""
